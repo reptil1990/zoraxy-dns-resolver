@@ -111,7 +111,7 @@ code { font-size: 0.95em; }
         <label>Static Records (one per line, <code>hostname&nbsp;ip</code> or <code>hostname,ip</code>; wildcards like <code>*.intern.example.com</code> supported)</label>
         <textarea id="cfg-records" rows="4" placeholder="nas.intern.example.com 192.168.1.20&#10;*.apps.intern.example.com 192.168.1.10"></textarea>
       </div>
-      <button class="ui primary button" type="submit">Save</button>
+      <button class="ui primary button" type="button" id="save-btn">Save</button>
       <span id="save-status" style="margin-left:1em"></span>
     </form>
   </div>
@@ -219,8 +219,7 @@ code { font-size: 0.95em; }
     });
   }
 
-  document.getElementById("config-form").addEventListener("submit", function (e) {
-    e.preventDefault();
+  document.getElementById("save-btn").addEventListener("click", function () {
     var body = {
       dns_port: parseInt(document.getElementById("cfg-port").value, 10),
       upstreams: lines(document.getElementById("cfg-upstreams").value),
