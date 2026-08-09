@@ -131,9 +131,19 @@ code { font-size: 0.95em; }
     fetch("api/stats").then(function (r) { return r.json(); }).then(function (d) {
       var s = d.stats;
       var box = document.getElementById("status-box");
-      box.className = "ui green message";
-      box.innerHTML = '<i class="check icon"></i> DNS listening on port ' + d.dns_port +
+      var msg = '<i class="check icon"></i> DNS listening on port ' + d.dns_port +
         ' &middot; ' + d.record_count + ' internal records loaded';
+      var sync = d.sync || {};
+      if (sync.enabled && sync.error) {
+        box.className = "ui yellow message";
+        msg += '<br><i class="warning icon"></i> Auto-sync error: ' + sync.error;
+      } else if (sync.enabled) {
+        box.className = "ui green message";
+        msg += ' &middot; auto-sync: ' + sync.synced_hosts + ' proxy hosts';
+      } else {
+        box.className = "ui green message";
+      }
+      box.innerHTML = msg;
       document.getElementById("stat-total").textContent = s.total;
       document.getElementById("stat-local").textContent = s.local;
       document.getElementById("stat-cached").textContent = s.cached;

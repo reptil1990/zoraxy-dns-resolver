@@ -32,13 +32,13 @@ func main() {
 		Description:   "Split-horizon DNS resolver: answers internal hostnames locally and forwards everything else to an upstream resolver",
 		URL:           "https://github.com/reptil1990/zoraxy-dns-resolver",
 		Type:          plugin.PluginType_Utilities,
-		VersionMajor:  1,
-		VersionMinor:  0,
+		VersionMajor:  0,
+		VersionMinor:  2,
 		VersionPatch:  0,
 		UIPath:        UI_PATH,
 		PermittedAPIEndpoints: []plugin.PermittedAPIEndpoint{
 			{
-				Method:   http.MethodGet,
+				Method:   http.MethodPost,
 				Endpoint: "/plugin/api/proxy/list",
 				Reason:   "Auto-sync internal DNS records from the configured HTTP reverse proxy hosts",
 			},
@@ -82,6 +82,7 @@ func handleStats(st *stats, mgr *dnsManager, recs *records) http.HandlerFunc {
 		writeJSON(w, map[string]any{
 			"dns_port":     mgr.port,
 			"record_count": recs.size(),
+			"sync":         recs.syncStatus(),
 			"stats":        st.snapshot(time.Now()),
 		})
 	}

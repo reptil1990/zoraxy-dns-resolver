@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -35,10 +36,19 @@ func (rs *recordSet) lookup(name string) (net.IP, bool) {
 	return nil, false
 }
 
+// syncStatus is the last auto-sync result, surfaced in the UI for diagnostics.
+type syncStatus struct {
+	Enabled     bool   `json:"enabled"`
+	LastRunUnix int64  `json:"last_run_unix"`
+	SyncedHosts int    `json:"synced_hosts"`
+	Error       string `json:"error"`
+}
+
 // records manages the internal record set behind an atomic pointer so the DNS
 // handler reads it lock-free while a rebuild swaps in a new snapshot.
 type records struct {
 	set    atomic.Pointer[recordSet]
+	status atomic.Pointer[syncStatus]
 	cfg    *configStore
 	zoraxy *zoraxyClient
 	mu     sync.Mutex // serializes rebuilds
@@ -48,11 +58,13 @@ type records struct {
 func newRecords(cfg *configStore, zoraxy *zoraxyClient) *records {
 	r := &records{cfg: cfg, zoraxy: zoraxy}
 	r.set.Store(&recordSet{exact: map[string]net.IP{}})
+	r.status.Store(&syncStatus{})
 	return r
 }
 
 func (r *records) lookup(name string) (net.IP, bool) { return r.set.Load().lookup(name) }
 func (r *records) size() int64                        { return r.count.Load() }
+func (r *records) syncStatus() *syncStatus            { return r.status.Load() }
 
 // rebuild recomputes the record set from static entries plus, if enabled, the
 // hostnames auto-synced from Zoraxy's reverse proxy rules.
@@ -83,20 +95,32 @@ func (r *records) rebuild() {
 		add(rec.Host, rec.IP)
 	}
 
-	if cfg.AutoSync && cfg.ZoraxyLANIP != "" && r.zoraxy != nil {
-		hosts, err := r.zoraxy.proxyHosts()
-		if err != nil {
-			fmt.Fprintf(logOut, "auto-sync: %v\n", err)
-		} else {
-			for _, h := range hosts {
-				add(h, cfg.ZoraxyLANIP)
+	status := &syncStatus{Enabled: cfg.AutoSync, LastRunUnix: time.Now().Unix()}
+	if cfg.AutoSync {
+		switch {
+		case cfg.ZoraxyLANIP == "":
+			status.Error = "Zoraxy LAN IP is not set"
+		case r.zoraxy == nil || r.zoraxy.apiKey == "":
+			status.Error = "no Zoraxy API key — grant this plugin API access in Zoraxy"
+		default:
+			hosts, err := r.zoraxy.proxyHosts()
+			if err != nil {
+				status.Error = err.Error()
+				fmt.Fprintf(logOut, "auto-sync: %v\n", err)
+			} else {
+				for _, h := range hosts {
+					add(h, cfg.ZoraxyLANIP)
+				}
+				status.SyncedHosts = len(hosts)
 			}
 		}
 	}
 
 	r.set.Store(rs)
+	r.status.Store(status)
 	r.count.Store(int64(len(rs.exact) + len(rs.wildcard)))
-	fmt.Fprintf(logOut, "records rebuilt: %d entries\n", len(rs.exact)+len(rs.wildcard))
+	fmt.Fprintf(logOut, "records rebuilt: %d entries (auto-synced %d hosts)\n",
+		len(rs.exact)+len(rs.wildcard), status.SyncedHosts)
 }
 
 // startSync rebuilds immediately and then re-syncs on an interval so that new
@@ -135,12 +159,15 @@ type proxyEndpoint struct {
 }
 
 // proxyHosts returns the hostnames of all enabled HTTP reverse proxy rules.
+// Zoraxy's /api/proxy/list reads the "type" parameter via PostPara, so it is
+// sent as a form body (POST); it is also kept in the query string as a fallback.
 func (z *zoraxyClient) proxyHosts() ([]string, error) {
 	url := fmt.Sprintf("http://127.0.0.1:%d/plugin/api/proxy/list?type=host", z.port)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader("type=host"))
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Authorization", "Bearer "+z.apiKey)
 
 	resp, err := z.client.Do(req)
@@ -153,11 +180,18 @@ func (z *zoraxyClient) proxyHosts() ([]string, error) {
 		return nil, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("status %d", resp.StatusCode)
+		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, snippet(body))
+	}
+
+	// Zoraxy returns an error object ({"error":"..."}) rather than an array on
+	// failure; catch that instead of surfacing a raw unmarshal error.
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 || trimmed[0] != '[' {
+		return nil, fmt.Errorf("unexpected response: %s", snippet(trimmed))
 	}
 
 	var endpoints []proxyEndpoint
-	if err := json.Unmarshal(body, &endpoints); err != nil {
+	if err := json.Unmarshal(trimmed, &endpoints); err != nil {
 		return nil, err
 	}
 
@@ -172,6 +206,14 @@ func (z *zoraxyClient) proxyHosts() ([]string, error) {
 		hosts = append(hosts, ep.MatchingDomainAlias...)
 	}
 	return hosts, nil
+}
+
+func snippet(b []byte) string {
+	s := strings.TrimSpace(string(b))
+	if len(s) > 200 {
+		s = s[:200] + "…"
+	}
+	return s
 }
 
 func normalizeDomain(d string) string {
