@@ -119,6 +119,13 @@ code { font-size: 0.95em; }
 </div>
 
 <script>
+  function csrfToken() {
+    var m = document.querySelector('meta[name="zoraxy.csrf.Token"]');
+    return m ? m.getAttribute("content") : "";
+  }
+  function postHeaders() {
+    return { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() };
+  }
   function parseRecords(v) {
     return v.split("\n").map(function (line) {
       var parts = line.trim().split(/[\s,]+/);
@@ -190,7 +197,7 @@ code { font-size: 0.95em; }
         cb.disabled = true;
         fetch("api/synced", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: postHeaders(),
           body: JSON.stringify({ host: cb.getAttribute('data-host'), enabled: cb.checked })
         }).then(function () { cb.disabled = false; refreshStats(); refreshSynced(); })
           .catch(function () { cb.disabled = false; cb.checked = !cb.checked; });
@@ -225,7 +232,7 @@ code { font-size: 0.95em; }
     status.textContent = "Saving...";
     fetch("api/config", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: postHeaders(),
       body: JSON.stringify(body)
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {

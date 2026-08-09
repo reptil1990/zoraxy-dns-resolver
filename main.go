@@ -34,7 +34,7 @@ func main() {
 		Type:          plugin.PluginType_Utilities,
 		VersionMajor:  0,
 		VersionMinor:  3,
-		VersionPatch:  2,
+		VersionPatch:  3,
 		UIPath:        UI_PATH,
 		PermittedAPIEndpoints: []plugin.PermittedAPIEndpoint{
 			{
