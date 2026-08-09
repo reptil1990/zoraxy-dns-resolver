@@ -41,7 +41,21 @@ type syncStatus struct {
 	Enabled     bool   `json:"enabled"`
 	LastRunUnix int64  `json:"last_run_unix"`
 	SyncedHosts int    `json:"synced_hosts"`
+	LanIP       string `json:"lan_ip"` // address auto-synced hosts resolve to
 	Error       string `json:"error"`
+}
+
+// detectLocalIP returns the host's primary LAN IPv4 by inspecting which local
+// address the OS would route outbound traffic from. No packet is sent. The
+// plugin always runs on the Zoraxy host, so this is the address LAN clients
+// should reach Zoraxy at. Falls back to loopback if detection fails.
+func detectLocalIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "127.0.0.1"
+	}
+	defer conn.Close()
+	return conn.LocalAddr().(*net.UDPAddr).IP.String()
 }
 
 // records manages the internal record set behind an atomic pointer so the DNS
@@ -95,11 +109,13 @@ func (r *records) rebuild() {
 		add(rec.Host, rec.IP)
 	}
 
-	status := &syncStatus{Enabled: cfg.AutoSync, LastRunUnix: time.Now().Unix()}
+	lanIP := strings.TrimSpace(cfg.ZoraxyLANIP)
+	if lanIP == "" {
+		lanIP = detectLocalIP()
+	}
+	status := &syncStatus{Enabled: cfg.AutoSync, LastRunUnix: time.Now().Unix(), LanIP: lanIP}
 	if cfg.AutoSync {
 		switch {
-		case cfg.ZoraxyLANIP == "":
-			status.Error = "Zoraxy LAN IP is not set"
 		case r.zoraxy == nil || r.zoraxy.apiKey == "":
 			status.Error = "no Zoraxy API key — grant this plugin API access in Zoraxy"
 		default:
@@ -109,7 +125,7 @@ func (r *records) rebuild() {
 				fmt.Fprintf(logOut, "auto-sync: %v\n", err)
 			} else {
 				for _, h := range hosts {
-					add(h, cfg.ZoraxyLANIP)
+					add(h, lanIP)
 				}
 				status.SyncedHosts = len(hosts)
 			}

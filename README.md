@@ -38,13 +38,13 @@ All settings are managed in the plugin UI (**Plugins → DNS Resolver**) and per
 | DNS Port | `53` | UDP/TCP port the resolver listens on (changing it restarts the resolver) |
 | Upstreams | `1.1.1.1:53` | Upstream resolvers, tried in order — **set this to your AdGuard IP** |
 | Auto-sync | `on` | Pull internal hostnames from Zoraxy's reverse proxy rules |
-| Zoraxy LAN IP | — | Address that auto-synced hosts resolve to (the LAN IP of the Zoraxy host) |
+| Zoraxy LAN IP | auto | Address that auto-synced hosts resolve to. Leave empty to auto-detect the host's LAN IP (the plugin always runs on the Zoraxy host) |
 | Static Records | — | Manual `hostname → IP` entries, wildcards supported |
 
 ### Typical setup
 
 1. Set **Upstreams** to your AdGuard Home instance, e.g. `192.168.1.5:53`.
-2. Enable **Auto-sync** and set **Zoraxy LAN IP** to the LAN address of the Zoraxy host.
+2. Enable **Auto-sync**. Leave **Zoraxy LAN IP** empty to auto-detect the host IP, or set it explicitly.
 3. Point your router's DHCP DNS (or the clients) at the Zoraxy host.
 
 Now `service.intern.example.com` resolves to Zoraxy directly, and `example.org` is resolved

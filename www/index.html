@@ -91,8 +91,8 @@ code { font-size: 0.95em; }
         </div>
       </div>
       <div class="field">
-        <label>Zoraxy LAN IP (auto-synced hosts resolve to this address)</label>
-        <input type="text" id="cfg-lanip" placeholder="192.168.1.10">
+        <label>Zoraxy LAN IP (auto-synced hosts resolve to this address; leave empty to auto-detect the host IP)</label>
+        <input type="text" id="cfg-lanip" placeholder="auto-detect (host IP)">
       </div>
       <div class="field">
         <label>Static Records (one per line, <code>hostname&nbsp;ip</code> or <code>hostname,ip</code>; wildcards like <code>*.intern.example.com</code> supported)</label>
@@ -139,7 +139,7 @@ code { font-size: 0.95em; }
         msg += '<br><i class="warning icon"></i> Auto-sync error: ' + sync.error;
       } else if (sync.enabled) {
         box.className = "ui green message";
-        msg += ' &middot; auto-sync: ' + sync.synced_hosts + ' proxy hosts';
+        msg += ' &middot; auto-sync: ' + sync.synced_hosts + ' proxy hosts → ' + (sync.lan_ip || '?');
       } else {
         box.className = "ui green message";
       }
