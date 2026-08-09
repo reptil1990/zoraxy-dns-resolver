@@ -33,7 +33,7 @@ func main() {
 		URL:           "https://github.com/reptil1990/zoraxy-dns-resolver",
 		Type:          plugin.PluginType_Utilities,
 		VersionMajor:  0,
-		VersionMinor:  2,
+		VersionMinor:  3,
 		VersionPatch:  0,
 		UIPath:        UI_PATH,
 		PermittedAPIEndpoints: []plugin.PermittedAPIEndpoint{
