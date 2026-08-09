@@ -1,0 +1,12 @@
+{
+  "id": "dns-resolver",
+  "name": "DNS Resolver",
+  "author": "reptil1990",
+  "author_contact": "reptil1990@me.com",
+  "description": "Split-horizon DNS resolver: answers internal hostnames locally and forwards everything else to an upstream resolver",
+  "url": "https://github.com/reptil1990/zoraxy-dns-resolver",
+  "type": 1,
+  "version_major": 0,
+  "version_minor": 3,
+  "version_patch": 5
+}

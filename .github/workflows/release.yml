@@ -45,6 +45,9 @@ jobs:
       - name: Build (windows_amd64)
         run: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o ./build/dns-resolver_windows_amd64.exe
 
+      - name: Include plugin icon
+        run: cp icon.png ./build/icon.png
+
       - name: Generate Release
         uses: ncipollo/release-action@v1
         with:

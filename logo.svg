@@ -1,0 +1,43 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#14B8A6"/>
+      <stop offset="0.55" stop-color="#0E7490"/>
+      <stop offset="1" stop-color="#1E3A8A"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="url(#bg)"/>
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="url(#gloss)"/>
+
+  <!-- upstream: cloud -->
+  <g fill="#ffffff">
+    <circle cx="108" cy="84" r="17"/>
+    <circle cx="128" cy="74" r="22"/>
+    <circle cx="150" cy="86" r="15"/>
+    <rect x="94" y="82" width="70" height="18" rx="9"/>
+  </g>
+
+  <!-- routing connectors through the resolver -->
+  <g stroke="#ffffff" stroke-width="6" stroke-linecap="round">
+    <line x1="128" y1="100" x2="128" y2="118"/>
+    <line x1="128" y1="146" x2="128" y2="162"/>
+  </g>
+
+  <!-- horizon: the split between upstream and local -->
+  <line x1="50" y1="132" x2="206" y2="132" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity="0.92"/>
+
+  <!-- local: house / LAN -->
+  <g fill="#ffffff">
+    <path d="M128 156 L162 182 L94 182 Z"/>
+    <rect x="106" y="180" width="44" height="30" rx="4"/>
+  </g>
+  <rect x="121" y="190" width="14" height="20" rx="2" fill="#0E7490"/>
+
+  <!-- resolver node on the horizon -->
+  <circle cx="128" cy="132" r="16" fill="#6EE7C7" stroke="#ffffff" stroke-width="5"/>
+</svg>
