@@ -16,28 +16,28 @@
 
   <!-- upstream: cloud -->
   <g fill="#ffffff">
-    <circle cx="108" cy="84" r="17"/>
-    <circle cx="128" cy="74" r="22"/>
-    <circle cx="150" cy="86" r="15"/>
-    <rect x="94" y="82" width="70" height="18" rx="9"/>
+    <circle cx="106" cy="72" r="18"/>
+    <circle cx="128" cy="62" r="23"/>
+    <circle cx="152" cy="74" r="16"/>
+    <rect x="92" y="72" width="72" height="19" rx="9.5"/>
   </g>
 
   <!-- routing connectors through the resolver -->
   <g stroke="#ffffff" stroke-width="6" stroke-linecap="round">
-    <line x1="128" y1="100" x2="128" y2="118"/>
-    <line x1="128" y1="146" x2="128" y2="162"/>
+    <line x1="128" y1="92" x2="128" y2="122"/>
+    <line x1="128" y1="154" x2="128" y2="170"/>
   </g>
 
   <!-- horizon: the split between upstream and local -->
-  <line x1="50" y1="132" x2="206" y2="132" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity="0.92"/>
+  <line x1="44" y1="138" x2="212" y2="138" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity="0.92"/>
 
   <!-- local: house / LAN -->
   <g fill="#ffffff">
-    <path d="M128 156 L162 182 L94 182 Z"/>
-    <rect x="106" y="180" width="44" height="30" rx="4"/>
+    <path d="M128 160 L160 184 L96 184 Z"/>
+    <rect x="107" y="181" width="42" height="33" rx="4"/>
   </g>
-  <rect x="121" y="190" width="14" height="20" rx="2" fill="#0E7490"/>
+  <rect x="121" y="196" width="14" height="18" rx="2" fill="#0E7490"/>
 
   <!-- resolver node on the horizon -->
-  <circle cx="128" cy="132" r="16" fill="#6EE7C7" stroke="#ffffff" stroke-width="5"/>
+  <circle cx="128" cy="138" r="16" fill="#6EE7C7" stroke="#ffffff" stroke-width="5"/>
 </svg>
