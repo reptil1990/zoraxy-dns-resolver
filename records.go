@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -38,11 +39,18 @@ func (rs *recordSet) lookup(name string) (net.IP, bool) {
 
 // syncStatus is the last auto-sync result, surfaced in the UI for diagnostics.
 type syncStatus struct {
-	Enabled     bool   `json:"enabled"`
-	LastRunUnix int64  `json:"last_run_unix"`
-	SyncedHosts int    `json:"synced_hosts"`
-	LanIP       string `json:"lan_ip"` // address auto-synced hosts resolve to
-	Error       string `json:"error"`
+	Enabled         bool   `json:"enabled"`
+	LastRunUnix     int64  `json:"last_run_unix"`
+	SyncedHosts     int    `json:"synced_hosts"`     // enabled hosts turned into records
+	DiscoveredHosts int    `json:"discovered_hosts"` // total hosts found in Zoraxy
+	LanIP           string `json:"lan_ip"`           // address auto-synced hosts resolve to
+	Error           string `json:"error"`
+}
+
+// syncedHost is a proxy host discovered via auto-sync, with its on/off state.
+type syncedHost struct {
+	Host    string `json:"host"`
+	Enabled bool   `json:"enabled"`
 }
 
 // detectLocalIP returns the host's primary LAN IPv4 by inspecting which local
@@ -63,6 +71,7 @@ func detectLocalIP() string {
 type records struct {
 	set    atomic.Pointer[recordSet]
 	status atomic.Pointer[syncStatus]
+	hosts  atomic.Pointer[[]syncedHost]
 	cfg    *configStore
 	zoraxy *zoraxyClient
 	mu     sync.Mutex // serializes rebuilds
@@ -73,12 +82,14 @@ func newRecords(cfg *configStore, zoraxy *zoraxyClient) *records {
 	r := &records{cfg: cfg, zoraxy: zoraxy}
 	r.set.Store(&recordSet{exact: map[string]net.IP{}})
 	r.status.Store(&syncStatus{})
+	r.hosts.Store(&[]syncedHost{})
 	return r
 }
 
 func (r *records) lookup(name string) (net.IP, bool) { return r.set.Load().lookup(name) }
 func (r *records) size() int64                        { return r.count.Load() }
 func (r *records) syncStatus() *syncStatus            { return r.status.Load() }
+func (r *records) syncedHosts() []syncedHost          { return *r.hosts.Load() }
 
 // rebuild recomputes the record set from static entries plus, if enabled, the
 // hostnames auto-synced from Zoraxy's reverse proxy rules.
@@ -114,6 +125,7 @@ func (r *records) rebuild() {
 		lanIP = detectLocalIP()
 	}
 	status := &syncStatus{Enabled: cfg.AutoSync, LastRunUnix: time.Now().Unix(), LanIP: lanIP}
+	discovered := []syncedHost{}
 	if cfg.AutoSync {
 		switch {
 		case r.zoraxy == nil || r.zoraxy.apiKey == "":
@@ -124,19 +136,44 @@ func (r *records) rebuild() {
 				status.Error = err.Error()
 				fmt.Fprintf(logOut, "auto-sync: %v\n", err)
 			} else {
-				for _, h := range hosts {
-					add(h, lanIP)
+				disabled := make(map[string]struct{}, len(cfg.AutoSyncDisabled))
+				for _, d := range cfg.AutoSyncDisabled {
+					disabled[normalizeDomain(d)] = struct{}{}
 				}
-				status.SyncedHosts = len(hosts)
+				seen := make(map[string]struct{}, len(hosts))
+				for _, h := range hosts {
+					hn := normalizeDomain(h)
+					if hn == "" {
+						continue
+					}
+					if _, dup := seen[hn]; dup {
+						continue
+					}
+					seen[hn] = struct{}{}
+					_, off := disabled[hn]
+					enabled := !off
+					discovered = append(discovered, syncedHost{Host: hn, Enabled: enabled})
+					if enabled {
+						add(hn, lanIP)
+					}
+				}
+				sort.Slice(discovered, func(i, j int) bool { return discovered[i].Host < discovered[j].Host })
+				status.DiscoveredHosts = len(discovered)
+				for _, d := range discovered {
+					if d.Enabled {
+						status.SyncedHosts++
+					}
+				}
 			}
 		}
 	}
 
 	r.set.Store(rs)
 	r.status.Store(status)
+	r.hosts.Store(&discovered)
 	r.count.Store(int64(len(rs.exact) + len(rs.wildcard)))
-	fmt.Fprintf(logOut, "records rebuilt: %d entries (auto-synced %d hosts)\n",
-		len(rs.exact)+len(rs.wildcard), status.SyncedHosts)
+	fmt.Fprintf(logOut, "records rebuilt: %d entries (auto-sync %d/%d hosts enabled)\n",
+		len(rs.exact)+len(rs.wildcard), status.SyncedHosts, status.DiscoveredHosts)
 }
 
 // startSync rebuilds immediately and then re-syncs on an interval so that new

@@ -16,20 +16,22 @@ type Record struct {
 // Config holds the persisted plugin settings. It is stored as config.json
 // next to the plugin binary and edited through the UI.
 type Config struct {
-	DNSPort       int      `json:"dns_port"`
-	Upstreams     []string `json:"upstreams"`
-	ZoraxyLANIP   string   `json:"zoraxy_lan_ip"`
-	AutoSync      bool     `json:"auto_sync"`
-	StaticRecords []Record `json:"static_records"`
+	DNSPort          int      `json:"dns_port"`
+	Upstreams        []string `json:"upstreams"`
+	ZoraxyLANIP      string   `json:"zoraxy_lan_ip"`
+	AutoSync         bool     `json:"auto_sync"`
+	AutoSyncDisabled []string `json:"auto_sync_disabled"` // synced hosts the user turned off
+	StaticRecords    []Record `json:"static_records"`
 }
 
 func defaultConfig() Config {
 	return Config{
-		DNSPort:       53,
-		Upstreams:     []string{"1.1.1.1:53"},
-		ZoraxyLANIP:   "",
-		AutoSync:      true,
-		StaticRecords: []Record{},
+		DNSPort:          53,
+		Upstreams:        []string{"1.1.1.1:53"},
+		ZoraxyLANIP:      "",
+		AutoSync:         true,
+		AutoSyncDisabled: []string{},
+		StaticRecords:    []Record{},
 	}
 }
 
@@ -73,6 +75,23 @@ func (s *configStore) get() Config {
 func (s *configStore) set(cfg Config) error {
 	s.mu.Lock()
 	s.cfg = cfg
+	s.mu.Unlock()
+	return s.save()
+}
+
+// setHostEnabled adds or removes a host from the auto-sync disabled list.
+func (s *configStore) setHostEnabled(host string, enabled bool) error {
+	s.mu.Lock()
+	kept := s.cfg.AutoSyncDisabled[:0:0]
+	for _, h := range s.cfg.AutoSyncDisabled {
+		if h != host {
+			kept = append(kept, h)
+		}
+	}
+	if !enabled {
+		kept = append(kept, host)
+	}
+	s.cfg.AutoSyncDisabled = kept
 	s.mu.Unlock()
 	return s.save()
 }

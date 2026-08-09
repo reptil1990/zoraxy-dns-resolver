@@ -74,6 +74,15 @@ code { font-size: 0.95em; }
   </div>
 
   <div class="ui segment">
+    <h4>Auto-synced Proxy Hosts <span id="synced-count" style="font-weight:normal;opacity:.6"></span></h4>
+    <p style="color:var(--text_color);opacity:0.6;font-size:.9em">
+      Discovered from Zoraxy's reverse proxy rules. Turn a host off to stop resolving it locally
+      (it then falls through to the upstream resolver).
+    </p>
+    <div id="synced-list"><p style="opacity:.6">Loading…</p></div>
+  </div>
+
+  <div class="ui segment">
     <h4>Configuration</h4>
     <form class="ui form" id="config-form">
       <div class="field">
@@ -156,6 +165,38 @@ code { font-size: 0.95em; }
     });
   }
 
+  function renderSynced(hosts) {
+    var box = document.getElementById("synced-list");
+    var count = document.getElementById("synced-count");
+    if (!hosts || hosts.length === 0) {
+      box.innerHTML = '<p style="opacity:.6">No hosts (auto-sync off, no API access, or nothing discovered).</p>';
+      count.textContent = "";
+      return;
+    }
+    var on = hosts.filter(function (h) { return h.enabled; }).length;
+    count.textContent = "(" + on + " of " + hosts.length + " enabled)";
+    box.innerHTML = hosts.map(function (h) {
+      return '<div class="field" style="margin:.35em 0"><div class="ui toggle checkbox">' +
+        '<input type="checkbox" data-host="' + h.host + '"' + (h.enabled ? ' checked' : '') + '>' +
+        '<label>' + h.host + '</label></div></div>';
+    }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll('input[type=checkbox]'), function (cb) {
+      cb.addEventListener('change', function () {
+        cb.disabled = true;
+        fetch("api/synced", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ host: cb.getAttribute('data-host'), enabled: cb.checked })
+        }).then(function () { cb.disabled = false; refreshStats(); refreshSynced(); })
+          .catch(function () { cb.disabled = false; cb.checked = !cb.checked; });
+      });
+    });
+  }
+
+  function refreshSynced() {
+    fetch("api/synced").then(function (r) { return r.json(); }).then(renderSynced).catch(function () {});
+  }
+
   function loadConfig() {
     fetch("api/config").then(function (r) { return r.json(); }).then(function (c) {
       document.getElementById("cfg-port").value = c.dns_port;
@@ -191,7 +232,9 @@ code { font-size: 0.95em; }
 
   loadConfig();
   refreshStats();
+  refreshSynced();
   setInterval(refreshStats, 5000);
+  setInterval(refreshSynced, 30000);
 </script>
 </body>
 </html>

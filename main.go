@@ -68,6 +68,7 @@ func main() {
 	mux.Handle(UI_PATH+"/", uiRouter.Handler())
 	mux.HandleFunc(UI_PATH+"/api/stats", handleStats(st, mgr, recs))
 	mux.HandleFunc(UI_PATH+"/api/config", handleConfig(store, mgr, recs))
+	mux.HandleFunc(UI_PATH+"/api/synced", handleSynced(store, recs))
 
 	pluginAddr := "127.0.0.1:" + strconv.Itoa(cfg.Port)
 	fmt.Fprintln(logOut, "Plugin server listening on", pluginAddr)
@@ -105,11 +106,14 @@ func handleConfig(store *configStore, mgr *dnsManager, recs *records) http.Handl
 				return
 			}
 
-			oldPort := store.get().DNSPort
+			old := store.get()
+			// The config form does not manage the per-host disable list; keep it.
+			incoming.AutoSyncDisabled = old.AutoSyncDisabled
 			if err := store.set(incoming); err != nil {
 				http.Error(w, "save failed: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
+			oldPort := old.DNSPort
 
 			result := map[string]any{"saved": true}
 			if incoming.DNSPort != oldPort {
@@ -119,6 +123,36 @@ func handleConfig(store *configStore, mgr *dnsManager, recs *records) http.Handl
 			}
 			go recs.rebuild()
 			writeJSON(w, result)
+
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// handleSynced serves the discovered auto-sync hosts (GET) and toggles a
+// single host on/off (POST {host, enabled}).
+func handleSynced(store *configStore, recs *records) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			writeJSON(w, recs.syncedHosts())
+
+		case http.MethodPost:
+			var body struct {
+				Host    string `json:"host"`
+				Enabled bool   `json:"enabled"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Host == "" {
+				http.Error(w, "invalid request", http.StatusBadRequest)
+				return
+			}
+			if err := store.setHostEnabled(normalizeDomain(body.Host), body.Enabled); err != nil {
+				http.Error(w, "save failed: "+err.Error(), http.StatusInternalServerError)
+				return
+			}
+			recs.rebuild()
+			writeJSON(w, map[string]any{"saved": true})
 
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
