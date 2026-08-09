@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>DNS Resolver</title>
+<link rel="stylesheet" href="/script/semantic/semantic.min.css">
+<link rel="stylesheet" href="/main.css">
+<style>
+body { background: none; }
+body.darkTheme .ui.header,
+body.darkTheme h4,
+body.darkTheme p,
+body.darkTheme label,
+body.darkTheme code,
+body.darkTheme table,
+body.darkTheme .ui.statistic > .value,
+body.darkTheme .ui.statistic > .label,
+body.darkTheme .ui.statistics .statistic > .value,
+body.darkTheme .ui.statistics .statistic > .label { color: #fafafa !important; }
+code { font-size: 0.95em; }
+.top-table td { padding: .3em .6em; }
+</style>
+</head>
+<body>
+<link rel="stylesheet" href="/darktheme.css">
+<script src="/script/darktheme.js"></script>
+<script>
+  function applyTheme() {
+    if (localStorage.getItem("theme") === "dark") {
+      document.body.classList.add("darkTheme");
+    } else {
+      document.body.classList.remove("darkTheme");
+    }
+  }
+  applyTheme();
+  window.addEventListener("storage", applyTheme);
+</script>
+<div class="ui container" style="padding-top:1.5em">
+
+  <h2 class="ui header">DNS Resolver</h2>
+  <p>Answers internal hostnames locally and forwards everything else to the upstream resolver.</p>
+
+  <div id="status-box" class="ui yellow message">
+    <i class="clock icon"></i> Loading status...
+  </div>
+
+  <div class="ui segment">
+    <h4>Query Statistics</h4>
+    <div class="ui four statistics">
+      <div class="statistic">
+        <div class="value" id="stat-total">-</div>
+        <div class="label">Total</div>
+      </div>
+      <div class="statistic">
+        <div class="value" id="stat-local">-</div>
+        <div class="label">Local</div>
+      </div>
+      <div class="statistic">
+        <div class="value" id="stat-cached">-</div>
+        <div class="label">Cached</div>
+      </div>
+      <div class="statistic">
+        <div class="value" id="stat-forwarded">-</div>
+        <div class="label">Forwarded</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ui segment">
+    <h4>Top Clients</h4>
+    <table class="ui very basic compact table top-table"><tbody id="top-clients">
+      <tr><td>-</td></tr>
+    </tbody></table>
+  </div>
+
+  <div class="ui segment">
+    <h4>Configuration</h4>
+    <form class="ui form" id="config-form">
+      <div class="field">
+        <label>DNS Port (changing it restarts the resolver)</label>
+        <input type="number" id="cfg-port" min="1" max="65535">
+      </div>
+      <div class="field">
+        <label>Upstream Resolvers (e.g. your AdGuard, one per line, host or host:port)</label>
+        <textarea id="cfg-upstreams" rows="2"></textarea>
+      </div>
+      <div class="field">
+        <div class="ui checkbox">
+          <input type="checkbox" id="cfg-autosync">
+          <label>Auto-sync internal records from Zoraxy reverse proxy hosts</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>Zoraxy LAN IP (auto-synced hosts resolve to this address)</label>
+        <input type="text" id="cfg-lanip" placeholder="192.168.1.10">
+      </div>
+      <div class="field">
+        <label>Static Records (one per line, <code>hostname&nbsp;ip</code> or <code>hostname,ip</code>; wildcards like <code>*.intern.example.com</code> supported)</label>
+        <textarea id="cfg-records" rows="4" placeholder="nas.intern.example.com 192.168.1.20&#10;*.apps.intern.example.com 192.168.1.10"></textarea>
+      </div>
+      <button class="ui primary button" type="submit">Save</button>
+      <span id="save-status" style="margin-left:1em"></span>
+    </form>
+  </div>
+
+</div>
+
+<script>
+  function parseRecords(v) {
+    return v.split("\n").map(function (line) {
+      var parts = line.trim().split(/[\s,]+/);
+      if (parts.length >= 2 && parts[0]) return { host: parts[0], ip: parts[1] };
+      return null;
+    }).filter(Boolean);
+  }
+  function recordsToText(a) {
+    return (a || []).map(function (r) { return r.host + " " + r.ip; }).join("\n");
+  }
+  function lines(v) { return v.split("\n").map(function (s) { return s.trim(); }).filter(Boolean); }
+  function toText(a) { return (a || []).join("\n"); }
+
+  function renderTop(id, entries) {
+    var tb = document.getElementById(id);
+    if (!entries || entries.length === 0) { tb.innerHTML = '<tr><td>-</td></tr>'; return; }
+    tb.innerHTML = entries.map(function (e) {
+      return '<tr><td>' + e.name + '</td><td style="text-align:right">' + e.count + '</td></tr>';
+    }).join("");
+  }
+
+  function refreshStats() {
+    fetch("api/stats").then(function (r) { return r.json(); }).then(function (d) {
+      var s = d.stats;
+      var box = document.getElementById("status-box");
+      box.className = "ui green message";
+      box.innerHTML = '<i class="check icon"></i> DNS listening on port ' + d.dns_port +
+        ' &middot; ' + d.record_count + ' internal records loaded';
+      document.getElementById("stat-total").textContent = s.total;
+      document.getElementById("stat-local").textContent = s.local;
+      document.getElementById("stat-cached").textContent = s.cached;
+      document.getElementById("stat-forwarded").textContent = s.forwarded;
+      renderTop("top-clients", s.top_clients);
+    }).catch(function () {
+      var box = document.getElementById("status-box");
+      box.className = "ui red message";
+      box.textContent = "Could not reach plugin status API.";
+    });
+  }
+
+  function loadConfig() {
+    fetch("api/config").then(function (r) { return r.json(); }).then(function (c) {
+      document.getElementById("cfg-port").value = c.dns_port;
+      document.getElementById("cfg-upstreams").value = toText(c.upstreams);
+      document.getElementById("cfg-autosync").checked = !!c.auto_sync;
+      document.getElementById("cfg-lanip").value = c.zoraxy_lan_ip || "";
+      document.getElementById("cfg-records").value = recordsToText(c.static_records);
+    });
+  }
+
+  document.getElementById("config-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var body = {
+      dns_port: parseInt(document.getElementById("cfg-port").value, 10),
+      upstreams: lines(document.getElementById("cfg-upstreams").value),
+      auto_sync: document.getElementById("cfg-autosync").checked,
+      zoraxy_lan_ip: document.getElementById("cfg-lanip").value.trim(),
+      static_records: parseRecords(document.getElementById("cfg-records").value)
+    };
+    var status = document.getElementById("save-status");
+    status.textContent = "Saving...";
+    fetch("api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { status.textContent = "Error: " + (res.d.error || "save failed"); return; }
+        status.textContent = res.d.dns_error ? ("Saved, but DNS bind failed: " + res.d.dns_error) : "Saved.";
+        refreshStats();
+      }).catch(function () { status.textContent = "Request failed."; });
+  });
+
+  loadConfig();
+  refreshStats();
+  setInterval(refreshStats, 5000);
+</script>
+</body>
+</html>

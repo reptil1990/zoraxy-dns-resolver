@@ -1,0 +1,47 @@
+name: Build and Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Build (linux_386)
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -o ./build/dns-resolver_linux_386
+
+      - name: Build (linux_amd64)
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o ./build/dns-resolver_linux_amd64
+
+      - name: Build (linux_arm)
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -o ./build/dns-resolver_linux_arm
+
+      - name: Build (linux_arm64)
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o ./build/dns-resolver_linux_arm64
+
+      - name: Build (linux_riscv64)
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=riscv64 go build -o ./build/dns-resolver_linux_riscv64
+
+      - name: Build (windows_amd64)
+        run: CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o ./build/dns-resolver_windows_amd64.exe
+
+      - name: Generate Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "./build/*"
+          tag: "${{ github.ref_name }}"
+          name: "${{ github.ref_name }}"
+          generateReleaseNotes: true
+          allowUpdates: true
